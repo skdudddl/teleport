@@ -6,15 +6,29 @@ import (
 	"log"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 func StartPodWatcher(ctx context.Context, webhookURL string) error {
-	config, err := rest.InClusterConfig()
+	log.Println("Waiting for Teleport to be ready...")
+	time.Sleep(10 * time.Second)
+
+	var kubeconfig string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = home + "/.kube/config"
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		return fmt.Errorf("failed to get in-cluster config: %w", err)
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return fmt.Errorf("failed to get in-cluster config: %w", err)
+		}
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
@@ -22,7 +36,7 @@ func StartPodWatcher(ctx context.Context, webhookURL string) error {
 		return fmt.Errorf("failed to create k8s client: %w", err)
 	}
 
-	watcher, err := clientset.CoreV1().Pods("").Watch(ctx, v1.ListOptions{})
+	watcher, err := clientset.CoreV1().Pods("").Watch(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to pod watcher: %w", err)
 	}
@@ -31,7 +45,7 @@ func StartPodWatcher(ctx context.Context, webhookURL string) error {
 	log.Println("Pod watcher started...")
 
 	for event := range watcher.ResultChan() {
-		pod, ok := event.Object.(*v1.Pod)
+		pod, ok := event.Object.(*corev1.Pod)
 		if !ok {
 			continue
 		}
