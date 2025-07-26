@@ -616,3 +616,5 @@ replace (
 // when evaluating versions; "go get -u ./..." succeeding is a good sign that
 // the problem has been resolved
 exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20241028142157-ada6787961b3
+
+replace github.com/gravitational/teleport => ./
