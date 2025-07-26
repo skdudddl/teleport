@@ -33,6 +33,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -58,6 +59,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
+
+	"github.com/gravitational/teleport/lib/kube/watcher"
 )
 
 const selinuxUnsupportedErr = "--enable-selinux is allowed only when the SSH service is the only service enabled"
@@ -805,6 +808,22 @@ func OnStart(clf config.CommandLineFlags, config *servicecfg.Config) error {
 	} else {
 		config.Logger.InfoContext(ctx, "Starting Teleport with a config file", "version", teleport.Version, "config_file", configFileUsed)
 	}
+
+	webhookURL := os.Getenv("SLACK_WEBHOOK_URL")
+	config.Logger.InfoContext(ctx, "DEBUG: SLACK_WEBHOOK_URL value", "url", webhookURL, "length", len(webhookURL))
+
+	if webhookURL != "" {
+		config.Logger.InfoContext(ctx, "Starting Pod Watcher with Slack notifications")
+		go func() {
+			time.Sleep(15 * time.Second)
+			if err := watcher.StartPodWatcher(ctx, webhookURL); err != nil {
+				config.Logger.ErrorContext(ctx, "Pod Watcher error", "error", err)
+			}
+		}()
+	} else {
+		config.Logger.InfoContext(ctx, "Pod watcher disabled - no SLACK_WEBHOOK_URL provided")
+	}
+
 	return service.Run(ctx, *config, nil)
 }
 
