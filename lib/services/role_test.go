@@ -9529,7 +9529,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 		})
 	}
 }
-func TestCheckAccessToPod_EssentialCases(t *testing.T) {
+func TestCheckAccessToPod(t *testing.T) {
 	ctx := context.Background()
 
 	basePod := types.KubernetesResource{
