@@ -9,24 +9,26 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// MatchPodAccessAndNotify checks access to the pod and triggers alert if denied.
+// MatchPodAccessAndNotify checks if the user is allowed to access the specified pod.
+// If access is denied, it logs the denial and optionally sends an alert (e.g., Slack, email, webhook).
+// If access is granted, it logs the successful access.
 func MatchPodAccessAndNotify(ctx context.Context, pod types.KubernetesResource, cluster types.KubeCluster, roleSet services.RoleSet, userTraits map[string][]string) error {
 	err := roleSet.CheckAccessToPod(ctx, cluster, pod, userTraits)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			// Access denied error handling
-			log.Printf("🚨 Access DENIED to pod %q: %v", pod.Name, err)
+			// Access denied — log the event
+			log.Printf("Access DENIED to pod %q: %v", pod.Name, err)
 
-			// 👉 여기에 Slack, Email, Webhook 등 알림 로직 추가 가능
+			// Optional: Send alert notification via Slack, email, webhook, etc.
 			// notify.SendAccessAlert(pod, user, err)
 
-			return nil // 접근 거부는 정상 처리
+			return nil // Denial is a handled, expected outcome
 		}
-		// ❗️기타 에러 처리
+		// nexpected error — return wrapped error
 		return trace.Wrap(err)
 	}
 
-	// Access granted, log the success
-	log.Printf("✅ Access ALLOWED to pod %q", pod.Name)
+	// Access granted — log the event
+	log.Printf("Access ALLOWED to pod %q", pod.Name)
 	return nil
 }
