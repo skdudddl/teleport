@@ -9529,6 +9529,120 @@ func TestKubeResourcesMatcher(t *testing.T) {
 		})
 	}
 }
+func TestCheckAccessToPod_EssentialCases(t *testing.T) {
+	ctx := context.Background()
+
+	basePod := types.KubernetesResource{
+		Kind:      "pods",
+		Name:      "nginx",
+		Namespace: "default",
+	}
+
+	cluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name:   "test-cluster",
+			Labels: map[string]string{"env": "dev"},
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	userTraits := wrappers.Traits{}
+
+	t.Run("AllowExactMatch", func(t *testing.T) {
+		role, _ := types.NewRole("allow-role", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesLabels: types.Labels{"env": []string{"dev"}},
+				KubernetesResources: []types.KubernetesResource{
+					basePod,
+				},
+			},
+		})
+		err := RoleSet{role}.CheckAccessToPod(ctx, cluster, basePod, userTraits)
+		require.NoError(t, err)
+	})
+
+	t.Run("DenyExactMatch", func(t *testing.T) {
+		role, _ := types.NewRole("deny-role", types.RoleSpecV6{
+			Deny: types.RoleConditions{
+				KubernetesLabels: types.Labels{"env": []string{"dev"}},
+				KubernetesResources: []types.KubernetesResource{
+					basePod,
+				},
+			},
+		})
+		err := RoleSet{role}.CheckAccessToPod(ctx, cluster, basePod, userTraits)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("AllowButLabelMismatch", func(t *testing.T) {
+		role, _ := types.NewRole("label-mismatch", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesLabels: types.Labels{"env": []string{"prod"}},
+				KubernetesResources: []types.KubernetesResource{
+					basePod,
+				},
+			},
+		})
+		err := RoleSet{role}.CheckAccessToPod(ctx, cluster, basePod, userTraits)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("AllowWithWildcardName", func(t *testing.T) {
+		role, _ := types.NewRole("wildcard-name", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesLabels: types.Labels{"env": []string{"dev"}},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      "pods",
+						Name:      "*",
+						Namespace: "default",
+					},
+				},
+			},
+		})
+		err := RoleSet{role}.CheckAccessToPod(ctx, cluster, basePod, userTraits)
+		require.NoError(t, err)
+	})
+
+	t.Run("NamespaceMismatch", func(t *testing.T) {
+		role, _ := types.NewRole("ns-mismatch", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesLabels: types.Labels{"env": []string{"dev"}},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      "pods",
+						Name:      "nginx",
+						Namespace: "prod",
+					},
+				},
+			},
+		})
+		err := RoleSet{role}.CheckAccessToPod(ctx, cluster, basePod, userTraits)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("NoMatchAtAll", func(t *testing.T) {
+		role, _ := types.NewRole("irrelevant-role", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesLabels: types.Labels{"env": []string{"dev"}},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      "pods",
+						Name:      "other-pod",
+						Namespace: "default",
+					},
+				},
+			},
+		})
+		err := RoleSet{role}.CheckAccessToPod(ctx, cluster, basePod, userTraits)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+}
 
 func boolsToSlice(v ...bool) []bool {
 	return v
