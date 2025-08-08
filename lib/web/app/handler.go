@@ -25,6 +25,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -145,9 +146,23 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.startAppAuthExchange))
 	h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
+	h.router.POST("/v1/testapi/sessions/web", makeRouterHandler(h.createWebSessionHandler))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
 	return h, nil
+}
+
+func (h *Handler) createWebSessionHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+	log.Println("🐛 [Custom Web Session Handler] called")
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write([]byte(`{"message":"✅ Custom web session created"}`))
+	if err != nil {
+		log.Println("write error:", err)
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // ServeHTTP hands the request to the request router.

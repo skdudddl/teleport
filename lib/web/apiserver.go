@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log"
 	"log/slog"
 	"math/rand/v2"
 	"net"
@@ -89,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/kube/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -2465,6 +2467,7 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	log.Println("🐛 [createWebSession] called")
 	var req *CreateSessionReq
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2512,7 +2515,42 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		h.logger.WarnContext(r.Context(), "Failed to get access checker", "user", req.User, "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusterName, err := clt.GetClusterName(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterNameStr := clusterName.GetClusterName()
+
+	watcher.UpdateUserSession(&watcher.UserSession{
+		Username:   req.User,
+		Cluster:    clusterNameStr,
+		RoleSet:    accessChecker.Roles(),
+		UserTraits: accessChecker.Traits(),
+	})
+
+	webhookURL := os.Getenv("SLACK_WEBHOOK_URL")
+
+	go func() {
+		err := watcher.StartPodWatcher(context.Background(), webhookURL)
+		if err != nil {
+			log.Printf("error: %v", err)
+		}
+	}()
+
+	log.Println("👽 Before newSessionResponse")
 	res, err := newSessionResponse(ctx)
+	log.Println("👽 After newSessionResponse, returning response")
 	return res, trace.Wrap(err)
 }
 

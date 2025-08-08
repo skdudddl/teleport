@@ -392,6 +392,7 @@ func (fs *FSTrustedCertsStore) addKnownHosts(proxyHost string, cas []authclient.
 	// add every host key to the list of entries
 	for _, ca := range cas {
 		for _, hostKey := range ca.AuthorizedKeys {
+			fs.log.DebugContext(context.Background(), "🐛 Starting to store host...")
 			fs.log.DebugContext(context.Background(), "Adding known host entry",
 				"cluster_name", ca.ClusterName,
 				"proxy", proxyHost,

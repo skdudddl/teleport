@@ -4,19 +4,26 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
+
 	"github.com/goccy/go-json"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
-	"io"
-	"log"
-	"net/http"
 )
 
 // MatchPodAccessAndNotify checks if the user is allowed to access the specified pod.
 // If access is denied, it logs the denial and optionally sends an alert (e.g., Slack, email, webhook).
 // If access is granted, it logs the successful access.
-func MatchPodAccessAndNotify(ctx context.Context, pod types.KubernetesResource, cluster types.KubeCluster, roleSet services.RoleSet, userTraits map[string][]string, webhookURL string) error {
+func MatchPodAccessAndNotify(
+	ctx context.Context,
+	podResource PodResourceWithLabels,
+	roleSet services.RoleSet,
+	userTraits map[string][]string,
+	clusterName string,
+	webhookURL string) error {
 	//podResource := types.KubernetesResource{
 	//	Kind:      "pods",
 	//	Namespace: pod.Namespace,
@@ -32,15 +39,46 @@ func MatchPodAccessAndNotify(ctx context.Context, pod types.KubernetesResource, 
 	//	log.Error(err)
 	//	return
 	//}
-	err := roleSet.CheckAccessToPod(ctx, cluster, pod, userTraits)
+
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name:   clusterName,
+		Labels: map[string]string{"env": "production"}, // 필요에 따라 변경 가능
+	}, types.KubernetesClusterSpecV3{})
+	if err != nil {
+		log.Printf("Failed to create cluster object: %v", err)
+		return trace.Wrap(err)
+	}
+
+	kubernetesResource := types.KubernetesResource{
+		Kind:      podResource.Kind,
+		Namespace: podResource.Namespace,
+		Name:      podResource.Name,
+		Verbs:     []string{"get", "list"}, // Default verbs for pod access check
+	}
+
+	// Create a dummy cluster for access check
+	// TODO: Get actual cluster information from current session
+	/*cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name:   "default-cluster",                      // This should come from user session
+		Labels: map[string]string{"env": "production"}, // This should come from actual cluster metadata
+	}, types.KubernetesClusterSpecV3{})
+	if err != nil {
+		log.Printf("Failed to create cluster object: %v", err)
+		return trace.Wrap(err)
+	}*/
+
+	log.Printf("Checking access for pod: %s/%s with labels: %v, clusterName: %s",
+		podResource.Namespace, podResource.Name, podResource.Labels, cluster.GetName())
+
+	err = roleSet.CheckAccessToPod(ctx, cluster, kubernetesResource, userTraits)
 	// CheckAccessToPod checks if the user has access to the specified pod.
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			// Access denied — log the event
-			log.Printf("Access DENIED to pod %q: %v", pod.Name, err)
+			log.Printf("Access DENIED to pod %s/%s: %v", podResource.Namespace, podResource.Name, err)
 
 			if webhookURL != "" {
-				msg := fmt.Sprintf("Access DENIED to pod: %s in namespace: %s", pod.Name, pod.Namespace)
+				msg := fmt.Sprintf("Access DENIED to pod: %s in namespace: %s", podResource.Name, podResource.Namespace)
 				if err := sendWebhookAlert(webhookURL, msg); err != nil {
 					log.Printf("❗️ Failed to send webhook alert: %v", err)
 				}
@@ -53,7 +91,7 @@ func MatchPodAccessAndNotify(ctx context.Context, pod types.KubernetesResource, 
 	}
 
 	// Access granted — log the event
-	log.Printf("Access ALLOWED to pod %q", pod.Name)
+	log.Printf("Access ALLOWED to pod %q", podResource.Name)
 	return nil
 }
 

@@ -19,6 +19,7 @@
 package app
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -102,6 +103,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 func makeRouterHandler(handler routerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		if err := handler(w, r, p); err != nil {
+			log.Printf("[makeRouterHandler] handler error: %v\n", err)
 			writeError(w, err)
 			return
 		}

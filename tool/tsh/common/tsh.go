@@ -50,6 +50,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -2041,6 +2042,10 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf, reExecArgs ...string) error {
+	logrus.WithFields(logrus.Fields{
+		"proxy":    cf.Proxy,
+		"username": cf.Username,
+	}).Debug("🐛 [DEBUG] inside onLogin() with CLIConf")
 	autoRequest := true
 	// special case: --request-roles=no disables auto-request behavior.
 	if cf.DesiredRoles == "no" {
