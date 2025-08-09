@@ -1,0 +1,34 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-pod-reader-binding
+  namespace: dev
+subjects:
+  - kind: Group
+    name: dev-pod-reader   # Teleport Role의 kubernetes_groups와 일치
+    apiGroup: rbac.authorization.k8s.io
+  - kind: User
+    name: testuser         # 정확한 사용자명 (kubectl config view 에서 확인)
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: dev-pod-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-pod-reader-binding
+  namespace: kube-system
+subjects:
+  - kind: Group
+    name: dev-pod-reader
+    apiGroup: rbac.authorization.k8s.io
+  - kind: User
+    name: testuser
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: dev-pod-reader
+  apiGroup: rbac.authorization.k8s.io

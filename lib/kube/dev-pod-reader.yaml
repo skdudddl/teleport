@@ -1,0 +1,41 @@
+kind: role
+metadata:
+  name: dev-pod-reader
+version: v8
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      # Pods
+      - kind: pods
+        namespace: dev
+        name: "*"
+        verbs: ["*"]
+        api_group: ""
+      - kind: pods
+        namespace: kube-system
+        name: "*"
+        verbs: ["*"]
+        api_group: ""
+      # Roles
+      - kind: roles
+        namespace: dev
+        name: "*"
+        verbs: ["*"]
+        api_group: rbac.authorization.k8s.io
+      # RoleBindings
+      - kind: rolebindings
+        namespace: dev
+        name: "*"
+        verbs: ["*"]
+        api_group: rbac.authorization.k8s.io
+    kubernetes_groups:
+      - dev-pod-reader
+  deny:
+    kubernetes_resources:
+      - kind: "*"
+        namespace: "ops"
+        name: "*"
+        verbs: ["*"]
+        api_group: "*"   # 여기 추가

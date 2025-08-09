@@ -42,7 +42,7 @@ func MatchPodAccessAndNotify(
 
 	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
 		Name:   clusterName,
-		Labels: map[string]string{"env": "production"}, // 필요에 따라 변경 가능
+		Labels: map[string]string{}, // 빈 map으로 둠, 필요 시 실제 레이블 넣기
 	}, types.KubernetesClusterSpecV3{})
 	if err != nil {
 		log.Printf("Failed to create cluster object: %v", err)
@@ -75,7 +75,7 @@ func MatchPodAccessAndNotify(
 	if err != nil {
 		if trace.IsAccessDenied(err) {
 			// Access denied — log the event
-			log.Printf("Access DENIED to pod %s/%s: %v", podResource.Namespace, podResource.Name, err)
+			log.Printf("❌ Access DENIED to pod %s/%s: %v", podResource.Namespace, podResource.Name, err)
 
 			if webhookURL != "" {
 				msg := fmt.Sprintf("Access DENIED to pod: %s in namespace: %s", podResource.Name, podResource.Namespace)
@@ -91,7 +91,7 @@ func MatchPodAccessAndNotify(
 	}
 
 	// Access granted — log the event
-	log.Printf("Access ALLOWED to pod %q", podResource.Name)
+	log.Printf("⭐️ Access ALLOWED to pod %q", podResource.Name)
 	return nil
 }
 
